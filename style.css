@@ -221,3 +221,22 @@ a.back{color:var(--red-ink)}
 .btn[disabled]{cursor:not-allowed}
 html{background:var(--paper)}
 .proto .btn{font-size:14px;padding:10px 12px}
+
+/* ---------- カテゴリー選択（タップで縦に開く） ---------- */
+.sel{display:flex;flex-direction:column;gap:6px}
+.sel-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;padding:8px 14px;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:9px;font:500 16px/1.5 var(--font-ui)}
+.sel.open .sel-btn{border-color:var(--gold)}
+.sel-val{min-width:0;overflow-wrap:anywhere}
+.sel-val small{color:var(--ink-2);margin-left:6px;font-size:.8em}
+svg.chev{flex:0 0 auto;width:20px;height:20px;color:var(--ink-2);transition:transform .15s}
+.sel.open svg.chev{transform:rotate(180deg)}
+.sel-list{scroll-margin-bottom:100px;list-style:none;margin:0;padding:4px;max-height:min(52vh,360px);overflow-y:auto;overscroll-behavior:contain;background:var(--card);border:1.5px solid var(--gold);border-radius:9px}
+.sel-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:8px 12px;text-align:left;background:none;border:none;border-radius:7px;font:400 16px/1.5 var(--font-ui)}
+.sel-opt:active{background:var(--paper-2)}
+.sel-opt .sel-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.sel-opt .sel-count{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.sel-opt svg.tick{flex:0 0 auto;width:20px;height:20px;color:var(--red-ink);opacity:0}
+.sel-opt.on{font-weight:700;background:var(--paper-2)}
+.sel-opt.on svg.tick{opacity:1}
+.sel-opt.add{color:var(--red-ink);font-weight:700;border-top:1px dashed var(--line);border-radius:0 0 7px 7px;margin-top:4px}
+@media (prefers-reduced-motion:reduce){svg.chev{transition:none}}

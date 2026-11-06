@@ -10,7 +10,7 @@
   'use strict';
 
   var store = window.BanshoStorage;
-  var state = { items: [], cats: [], q: '', fcat: '', rv: 0, cur: null, edit: null };
+  var state = { items: [], cats: [], q: '', fcat: '', rv: 0, cur: null, edit: null, sel: { list: false, edit: false } };
   var toastTimer = null;
 
   /* ---------- 小さな道具 ---------- */
@@ -128,13 +128,43 @@
       : '仮保存版 ・ 画面を閉じるとデータは消えます';
   }
 
+  /* ---------- カテゴリー選択（登録画面と一覧画面で共通） ---------- */
+  // 選択欄をタップすると、一覧が縦に開く。選ぶと閉じて、選んだ名前が表示される。
+  function selHtml(key, labelledBy, ariaLabel, options, value, addLabel) {
+    var cur = options.filter(function (o) { return o.v === value; })[0] || options[0];
+    var open = !!state.sel[key];
+    var h = '<div class="sel' + (open ? ' open' : '') + '">' +
+      '<button type="button" class="sel-btn" data-act="sel-toggle" data-sel="' + key + '" aria-haspopup="listbox" aria-expanded="' + (open ? 'true' : 'false') + '"' +
+      (labelledBy ? ' aria-labelledby="' + labelledBy + ' ' + key + '-val"' : ' aria-label="' + ariaLabel + '"') + '>' +
+      '<span class="sel-val" id="' + key + '-val">' + esc(cur.label) + (cur.count !== undefined ? ' <small>' + cur.count + '件</small>' : '') + '</span>' +
+      '<svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
+    if (open) {
+      h += '<ul class="sel-list" role="listbox" aria-label="' + ariaLabel + '">';
+      options.forEach(function (o) {
+        var on = o.v === cur.v;
+        h += '<li role="presentation"><button type="button" class="sel-opt' + (on ? ' on' : '') + '" role="option" aria-selected="' + (on ? 'true' : 'false') + '" data-act="sel-pick" data-sel="' + key + '" data-v="' + esc(o.v) + '">' +
+          '<span class="sel-name">' + esc(o.label) + '</span>' +
+          (o.count !== undefined ? '<span class="sel-count">' + o.count + '件</span>' : '') +
+          '<svg class="ic tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button></li>';
+      });
+      if (addLabel) {
+        h += '<li role="presentation"><button type="button" class="sel-opt add" data-act="sel-add" data-sel="' + key + '"><span class="sel-name">＋ ' + addLabel + '</span></button></li>';
+      }
+      h += '</ul>';
+    }
+    return h + '</div>';
+  }
+  function closeSelects() {
+    var was = state.sel.list || state.sel.edit;
+    state.sel.list = false; state.sel.edit = false;
+    return was;
+  }
+
   /* ---------- 一覧 ---------- */
   function renderList() {
-    var h = '<button type="button" class="chip" data-act="chip" data-v="" aria-pressed="' + (state.fcat === '' ? 'true' : 'false') + '">すべて</button>';
-    state.cats.forEach(function (c) {
-      h += '<button type="button" class="chip" data-act="chip" data-v="' + esc(c.id) + '" aria-pressed="' + (state.fcat === c.id ? 'true' : 'false') + '">' + esc(c.name) + ' <small>' + countOf(c.id) + '</small></button>';
-    });
-    $('#list-chips').innerHTML = h;
+    var opts = [{ v: '', label: 'すべてのカテゴリー', count: state.items.length }];
+    state.cats.forEach(function (c) { opts.push({ v: c.id, label: c.name, count: countOf(c.id) }); });
+    $('#list-sel').innerHTML = selHtml('list', '', 'カテゴリーで絞り込む', opts, state.fcat, '');
     renderResults();
   }
   function renderResults() {
@@ -187,6 +217,7 @@
   function openEdit(id) {
     var it = id ? findItem(id) : null;
     state.edit = { id: id, cat: it ? (it.category_id || '') : '', pending: [], seq: 0 };
+    state.sel.edit = false;
     $('#edit-title').textContent = it ? '知識を編集する' : '知識を登録する';
     $('#f-title').value = it ? it.title : '';
     $('#f-meaning').value = it ? it.meaning : '';
@@ -203,12 +234,9 @@
   }
   function renderCatChips() {
     var e = state.edit;
-    var h = '<button type="button" class="chip" data-act="cat-pick" data-v="" aria-pressed="' + (e.cat === '' ? 'true' : 'false') + '">なし</button>';
-    allEditCats().forEach(function (c) {
-      h += '<button type="button" class="chip" data-act="cat-pick" data-v="' + esc(c.id) + '" aria-pressed="' + (e.cat === c.id ? 'true' : 'false') + '">' + esc(c.name) + '</button>';
-    });
-    h += '<button type="button" class="chip add" data-act="cat-add-toggle">＋ 追加</button>';
-    $('#cat-chips').innerHTML = h;
+    var opts = [{ v: '', label: 'なし' }];
+    allEditCats().forEach(function (c) { opts.push({ v: c.id, label: c.name }); });
+    $('#cat-sel').innerHTML = selHtml('edit', 'cat-lbl', 'カテゴリーを選ぶ', opts, e.cat, '新しいカテゴリーを追加');
   }
   function tryAddCat(force) {
     var name = $('#f-newcat').value.trim(), er = $('#e-cat'), w = $('#cat-warn');
@@ -359,16 +387,33 @@
   /* ---------- 操作の受け付け ---------- */
   document.addEventListener('click', function (e) {
     if (e.target.id === 'scrim') { closeSheet(); return; }
+    if (!e.target.closest('.sel') && (state.sel.list || state.sel.edit)) {
+      closeSelects();
+      if (!$('#s-list').hidden) renderList();
+      if (!$('#s-edit').hidden) renderCatChips();
+    }
     var el = e.target.closest('[data-act]'); if (!el) return;
     var a = el.getAttribute('data-act'), v = el.getAttribute('data-v');
     switch (a) {
-      case 'chip': state.fcat = v; renderList(); break;
+      case 'sel-toggle':
+        var key = el.getAttribute('data-sel'), was = !!state.sel[key];
+        closeSelects(); state.sel[key] = !was;
+        if (key === 'list') renderList(); else renderCatChips();
+        var opened = document.querySelector('#' + (key === 'list' ? 'list-sel' : 'cat-sel') + ' .sel-list');
+        if (opened && opened.scrollIntoView) opened.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        break;
+      case 'sel-pick':
+        var k = el.getAttribute('data-sel');
+        state.sel[k] = false;
+        if (k === 'list') { state.fcat = v; renderList(); }
+        else { state.edit.cat = v; renderCatChips(); }
+        break;
+      case 'sel-add':
+        state.sel.edit = false; renderCatChips();
+        var abx = $('#addbox'); abx.hidden = false; $('#cat-warn').hidden = true; $('#e-cat').hidden = true;
+        $('#f-newcat').focus(); break;
       case 'clear-filter': state.q = ''; state.fcat = ''; $('#q').value = ''; renderList(); break;
       case 'edit-cancel': cancelEdit(); break;
-      case 'cat-pick': state.edit.cat = v; renderCatChips(); break;
-      case 'cat-add-toggle':
-        var ab = $('#addbox'); ab.hidden = !ab.hidden; $('#cat-warn').hidden = true; $('#e-cat').hidden = true;
-        if (!ab.hidden) $('#f-newcat').focus(); break;
       case 'cat-add-do': tryAddCat(false); break;
       case 'cat-force': tryAddCat(true); break;
       case 'cat-use': state.edit.cat = v; $('#addbox').hidden = true; $('#cat-warn').hidden = true; $('#f-newcat').value = ''; renderCatChips(); break;
@@ -405,7 +450,10 @@
     if (e.target.id === 'm-from' || e.target.id === 'm-to') updateMerge();
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeSheet();
+    if (e.key === 'Escape') {
+      closeSheet();
+      if (closeSelects()) { if (!$('#s-list').hidden) renderList(); if (!$('#s-edit').hidden) renderCatChips(); }
+    }
     if (e.key === 'Enter' && e.target && e.target.id === 'r-name') { e.preventDefault(); doRename(false); }
   });
   $('#q').addEventListener('input', function (e) { state.q = e.target.value; renderResults(); });

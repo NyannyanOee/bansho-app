@@ -210,7 +210,7 @@
         </div>
         <div class="field">
           <span class="lbl" id="cat-lbl">カテゴリー <span class="opt">任意</span></span>
-          <div class="chips" id="cat-chips" role="group" aria-labelledby="cat-lbl"></div>
+          <div id="cat-sel"></div>
           <div class="addbox" id="addbox" hidden>
             <label for="f-newcat" class="hint">新しいカテゴリー名</label>
             <div class="inl">
@@ -246,7 +246,7 @@
           <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
           <input type="search" id="q" placeholder="タイトル・説明・メモから探す" autocomplete="off" aria-label="知識を検索">
         </div>
-        <div class="chips scroll" id="list-chips" role="group" aria-label="カテゴリーで絞り込む"></div>
+        <div id="list-sel"></div>
         <p class="count" id="list-count" aria-live="polite"></p>
         <div id="list-body"></div>
       </div>
