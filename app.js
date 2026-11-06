@@ -172,7 +172,9 @@
     var res = state.items.filter(function (it) {
       if (state.fcat && it.category_id !== state.fcat) return false;
       if (!nq) return true;
-      return norm(it.title).indexOf(nq) > -1 || norm(it.meaning).indexOf(nq) > -1 || norm(it.memo || '').indexOf(nq) > -1;
+      // 検索の対象：タイトル・よみ・意味・メモ（よみが未登録のデータは、空として扱う）
+      return norm(it.title).indexOf(nq) > -1 || norm(it.reading || '').indexOf(nq) > -1 ||
+        norm(it.meaning).indexOf(nq) > -1 || norm(it.memo || '').indexOf(nq) > -1;
     });
     var body = $('#list-body'), cnt = $('#list-count');
     if (!state.items.length) {
@@ -220,6 +222,7 @@
     state.sel.edit = false;
     $('#edit-title').textContent = it ? '知識を編集する' : '知識を登録する';
     $('#f-title').value = it ? it.title : '';
+    $('#f-reading').value = it ? (it.reading || '') : '';
     $('#f-meaning').value = it ? it.meaning : '';
     $('#f-example').value = it ? (it.example || '') : '';
     $('#f-supp').value = it ? (it.supplement || '') : '';
@@ -277,7 +280,7 @@
     }
     chain.then(function (catId) {
       return store.saveItem({
-        id: e.id, title: t, meaning: m,
+        id: e.id, title: t, reading: $('#f-reading').value, meaning: m,
         example: $('#f-example').value, supplement: $('#f-supp').value, memo: $('#f-memo').value,
         category_id: catId || null
       });

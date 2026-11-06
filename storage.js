@@ -10,7 +10,7 @@
  * 実データを入れて使うものではありません。
  *
  * 【データの形】
- * 知識  : id, title, meaning, example, supplement, memo, category_id,
+ * 知識  : id, title, reading（タイトルのよみ・任意・検索専用）, meaning, example, supplement, memo, category_id,
  *         created_at, updated_at, deleted_at（削除していなければ null）
  * カテゴリー: id, name, created_at, updated_at, deleted_at
  *
@@ -64,6 +64,14 @@
     }
 
     /* ---- 画面確認用の架空データ（A段階だけ） ---- */
+    // 「よみ」は一部だけ入れてある（入っていないデータでも正常に動くことの確認用）
+    var READINGS = {
+      '三角形の内角の和': 'さんかくけいのないかくのわ',
+      'ソクラテスの問答法': 'そくらてすのもんどうほう',
+      '認知的不協和': 'にんちてきふきょうわ',
+      '光合成': 'こうごうせい',
+      '情けは人の為ならず': 'なさけはひとのためならず'
+    };
     function seed() {
       items = []; cats = [];
       var names = ['数学', '哲学', '心理学', '科学', '言葉', '雑学', '心理'];
@@ -115,7 +123,7 @@
       rows.forEach(function (r) {
         var at = new Date(r[0] + '+09:00').toISOString();
         items.push({
-          id: uid(), title: r[2], meaning: r[3], example: r[4], supplement: r[5], memo: r[6],
+          id: uid(), title: r[2], reading: READINGS[r[2]] || '', meaning: r[3], example: r[4], supplement: r[5], memo: r[6],
           category_id: cid[r[1]], created_at: at, updated_at: at, deleted_at: null
         });
       });
@@ -140,6 +148,7 @@
         var at = now();
         var fields = {
           title: title, meaning: meaning,
+          reading: String(input.reading || '').trim(),
           example: String(input.example || '').trim(),
           supplement: String(input.supplement || '').trim(),
           memo: String(input.memo || '').trim(),
