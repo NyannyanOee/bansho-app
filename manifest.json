@@ -1,0 +1,15 @@
+{
+  "name": "万象書庫",
+  "short_name": "万象書庫",
+  "description": "自分が学んだ知識を蓄積し、検索・整理・復習する個人用アプリ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6EDD8",
+  "theme_color": "#A32A22",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
