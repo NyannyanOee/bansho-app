@@ -327,20 +327,22 @@
     return isNaN(d.getTime()) ? iso : d.toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
   // 書き出しの操作を確認できたときだけ、日時を記録する（キャンセルでは記録しない）
-  function finishExport() {
+  // onDone は、読み込み前の書き出しで「保存の操作が終わった」ことを知るための任意の処理
+  function finishExport(onDone) {
     return store.markExported(new Date().toISOString()).then(renderBackup).then(function () {
-      toast('書き出しの操作を記録しました');
+      // 読み込み前の書き出しでは、画面の文章で知らせるので、通知は出さない（確認画面に重なるため）
+      if (typeof onDone === 'function') onDone(); else toast('書き出しの操作を記録しました');
     }).catch(function () { toast('記録できませんでした。もう一度お試しください。'); });
   }
   // ボタンを押した直後に、同じ操作の中で共有画面を開く（iPhoneでは、押した操作の中で開く必要があるため、
   // データは画面を開いた時点で用意しておく＝state.exp）
-  function doExport() {
+  function doExport(onDone) {
     var exp = state.exp;
     if (!exp) { toast('準備中です。少し待ってから押してください。'); return; }
     var file = null;
     try { file = new File([exp.text], exp.filename, { type: 'application/json' }); } catch (e) { file = null; }
     if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: exp.filename }).then(finishExport, function (err) {
+      navigator.share({ files: [file], title: exp.filename }).then(function () { finishExport(onDone); }, function (err) {
         if (err && err.name === 'AbortError') { toast('書き出しをやめました'); }
         else { toast('書き出せませんでした。もう一度お試しください。'); }
       });
@@ -352,7 +354,98 @@
     a.href = url; a.download = exp.filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
-    finishExport();
+    finishExport(onDone);
+  }
+
+  /* ---------- 読み込み（復元） ----------
+   * 流れ：①今のデータを書き出す（保存を確認するまで次へ進めない）→ ②ファイルを選ぶ
+   *       → ③検証・差分の一覧 → ④確認して反映。
+   * 追加だけを行い、今のデータの上書き・削除済みの復活はしない。 */
+  var rs = { text: '', name: '' };
+  function rsStep1() {
+    rs = { text: '', name: '' };
+    openSheet(
+      '<h3>読み込む前に、今のデータを書き出します</h3>' +
+      '<p>読み込みで困ったときに戻せるよう、いまのデータをバックアップとして保存してください。保存したことを確認するまで、次へ進めません。</p>' +
+      '<button type="button" class="btn primary" data-act="restore-export" id="rs-exp">今のデータを書き出す</button>' +
+      '<p class="hint" id="rs-exp-state">まだ書き出していません。</p>' +
+      '<label class="chk"><input type="checkbox" id="rs-ok" disabled><span>保存の操作を終えました（「ファイルに保存」でiCloud Driveなどに保存したことを確認しました）</span></label>' +
+      '<div class="row-btns"><button type="button" class="btn ghost" data-act="sheet-close">やめる</button>' +
+      '<button type="button" class="btn primary" data-act="restore-next" id="rs-next" disabled>次へ（ファイルを選ぶ）</button></div>');
+  }
+  function rsExportDone() {
+    var st = $('#rs-exp-state'), ck = $('#rs-ok');
+    if (!st || !ck) return;
+    st.textContent = '書き出しの操作を終えました。保存先を確かめてから、下にチェックを入れてください。';
+    ck.disabled = false;
+  }
+  function rsStep2() {
+    openSheet(
+      '<h3>バックアップファイルを選ぶ</h3>' +
+      '<p>書き出したファイル（bansho-backup-…json）を選んでください。選んだだけでは、データは変わりません。</p>' +
+      '<input type="file" id="rs-file" accept=".json,application/json">' +
+      '<div class="row-btns"><button type="button" class="btn ghost" data-act="sheet-close">やめる</button></div>');
+  }
+  function rsStop(title, lines, note) {
+    openSheet('<h3>' + esc(title) + '</h3>' +
+      (lines && lines.length ? '<ul class="plain">' + lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : '') +
+      '<p><b>' + esc(note || 'データは変更していません。') + '</b></p>' +
+      '<div class="row-btns"><button type="button" class="btn" data-act="sheet-close">閉じる</button></div>');
+  }
+  function rsList(list, max) {
+    var shown = list.slice(0, max).map(function (x) {
+      return '<li>' + esc(x.label) + (x.deleted ? '（削除済みとして追加）' : '') + (x.dupName ? '（同じ名前のカテゴリーが、すでにあります）' : '') + '</li>';
+    }).join('');
+    return '<ul class="plain">' + shown + (list.length > max ? '<li>ほか' + (list.length - max) + '件</li>' : '') + '</ul>';
+  }
+  function rsReport(p) {
+    var addI = p.items.add.length, addC = p.cats.add.length;
+    var keepN = p.items.keep.length + p.cats.keep.length, delN = p.items.keepDeleted.length + p.cats.keepDeleted.length;
+    var sameN = p.items.same + p.cats.same;
+    var h = '<h3>読み込み前の確認</h3>' +
+      '<p class="hint">ファイル：' + esc(rs.name) + (p.exported_at ? '（書き出し：' + esc(fmtDate(p.exported_at)) + '）' : '') + '</p>' +
+      '<div class="diff"><div class="kv"><span>追加される知識</span><b>' + addI + '件</b></div>' + (addI ? rsList(p.items.add, 10) : '') + '</div>' +
+      '<div class="diff"><div class="kv"><span>追加されるカテゴリー</span><b>' + addC + '件</b></div>' + (addC ? rsList(p.cats.add, 10) : '') + '</div>' +
+      '<div class="diff"><div class="kv"><span>変わらないもの（同じ内容）</span><b>' + sameN + '件</b></div></div>' +
+      '<div class="diff"><div class="kv"><span>今のデータを残すもの（内容が違う）</span><b>' + keepN + '件</b></div>' +
+      (keepN ? rsList(p.items.keep.concat(p.cats.keep), 10) + '<p class="hint">同じIDで内容が違うため、上書きしません。</p>' : '') + '</div>' +
+      '<div class="diff"><div class="kv"><span>削除済みのまま（復活させない）</span><b>' + delN + '件</b></div>' +
+      (delN ? rsList(p.items.keepDeleted.concat(p.cats.keepDeleted), 10) : '') + '</div>';
+    if (addI + addC === 0) {
+      h += '<p><b>追加するものはありません。データは変更しません。</b></p><div class="row-btns"><button type="button" class="btn" data-act="sheet-close">閉じる</button></div>';
+    } else {
+      h += '<p>この内容で読み込むと、上の「追加される」ものだけが加わります。</p>' +
+        '<div class="row-btns"><button type="button" class="btn ghost" data-act="sheet-close">やめる</button>' +
+        '<button type="button" class="btn primary" data-act="restore-apply" id="rs-apply">この内容で読み込む</button></div>';
+    }
+    openSheet(h);
+    $('#sheet').scrollTop = 0; // 長い一覧でも、先頭（タイトル）から見えるようにする
+  }
+  function rsFile(file) {
+    if (!file) return;
+    rs.name = file.name || '';
+    var read = file.text ? file.text() : new Promise(function (res, rej) {
+      var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = function () { rej(fr.error); }; fr.readAsText(file);
+    });
+    read.then(function (text) {
+      var v = store.parseBackup(text);
+      if (!v.ok) { rsStop('このファイルは読み込めません', v.errors); return; }
+      rs.text = text;
+      return store.planRestore(text).then(rsReport);
+    }).catch(function () { rsStop('このファイルは読み込めません', ['ファイルを開けませんでした。']); });
+  }
+  function rsApply() {
+    var b = $('#rs-apply'); if (b) b.disabled = true;
+    store.applyRestore(rs.text).then(function (r) {
+      rs = { text: '', name: '' };
+      closeSheet();
+      toast('読み込みました（知識' + r.items + '件・カテゴリー' + r.cats + '件を追加）');
+      // 表示の更新に失敗しても、データは反映済み。ページを開き直せば表示される
+      return refresh().then(function () { if (!$('#s-backup').hidden) renderBackup(); })
+        .catch(function () { toast('読み込みは完了しました。表示を更新するため、ページを開き直してください。'); });
+    }, function () {
+      rsStop('読み込めませんでした', ['途中で失敗したため、すべて取り消しました。'], 'データは変更されていません。');
+    });
   }
   function renderBackup() {
     $('#st-kind').textContent = store.label;
@@ -483,6 +576,10 @@
       case 'rename-force': doRename(true); break;
       case 'merge-open': openMerge(); break;
       case 'export': doExport(); break;
+      case 'restore-open': rsStep1(); break;
+      case 'restore-export': doExport(rsExportDone); break;
+      case 'restore-next': if ($('#rs-ok') && $('#rs-ok').checked) rsStep2(); break;
+      case 'restore-apply': rsApply(); break;
       case 'merge-do':
         var f = $('#m-from').value, t = $('#m-to').value; if (f === t) break;
         var fn = catName(f), tn = catName(t);
@@ -495,6 +592,8 @@
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'm-from' || e.target.id === 'm-to') updateMerge();
+    if (e.target.id === 'rs-ok') { $('#rs-next').disabled = !e.target.checked; }
+    if (e.target.id === 'rs-file') { rsFile(e.target.files && e.target.files[0]); }
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
