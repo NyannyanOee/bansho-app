@@ -25,7 +25,7 @@
  * 【安全のための決まり】
  * ・登録や更新は、1回の取引（トランザクション）で行う。途中で失敗したら、すべて取り消される。
  * ・データベースを削除する処理（deleteDatabase）は、このアプリには存在しない。
- * ・全件を消す処理は、実データがあるため無効にしてある（clearAll / resetSample）。
+ * ・全件を消す処理は、このファイルにはない（実データを守るため）。
  * ・保存先を開けなかったときは、メモリ上に切り替えず、エラーにする（消える保存に黙って切り替えない）。
  */
 (function () {
@@ -112,6 +112,19 @@
     }
 
     function cleanItem(it) { return JSON.parse(JSON.stringify(it)); }
+
+    // 全件（削除したものを含む）と、最後の保存操作の日時を読む
+    function readAll() {
+      return tx(['items', 'categories', 'meta'], 'readonly', function (t) {
+        return Promise.all([
+          reqP(t.objectStore('items').getAll()),
+          reqP(t.objectStore('categories').getAll()),
+          reqP(t.objectStore('meta').get('last_export'))
+        ]).then(function (r) {
+          return { items: r[0], cats: r[1], last: r[2] ? r[2].value : null };
+        });
+      });
+    }
 
     return {
       kind: 'indexeddb',
@@ -214,9 +227,44 @@
         });
       },
 
-      /* 画面確認用の全件操作は、実データがあるため無効にしてある */
-      resetSample: function () { return Promise.reject(new Error('実データがあるため、この操作は使えません。')); },
-      clearAll: function () { return Promise.reject(new Error('実データがあるため、この操作は使えません。')); }
+      /* バックアップ（書き出し）。読み取りだけで、データは変えない */
+      // 削除したものも含めて、すべてのデータを1つのJSON文字列にまとめる
+      exportSnapshot: function () {
+        return readAll().then(function (r) {
+          var at = now();
+          var obj = {
+            format: 'bansho-backup',
+            schema_version: 1,
+            exported_at: at,
+            items: r.items,
+            categories: r.cats
+          };
+          var stamp = at.replace(/[-:]/g, '').slice(0, 15).replace('T', '-'); // 例：20261107-213000
+          return {
+            text: JSON.stringify(obj),
+            filename: 'bansho-backup-' + stamp + '.json',
+            itemCount: r.items.length,
+            catCount: r.cats.length
+          };
+        });
+      },
+      // 最後に「保存操作」を確認した日時と、それ以降に変更があるかを返す
+      // ※ iCloud Drive に保存されたかは、アプリからは確認できない
+      backupStatus: function () {
+        return readAll().then(function (r) {
+          var all = r.items.concat(r.cats);
+          var unsaved = r.last === null
+            ? all.length > 0
+            : all.some(function (x) { return (x.updated_at || '') > r.last; });
+          return { last: r.last, unsaved: unsaved };
+        });
+      },
+      // 保存操作を確認したときだけ呼ぶ
+      markExported: function (at) {
+        return tx(['meta'], 'readwrite', function (t) {
+          return reqP(t.objectStore('meta').put({ key: 'last_export', value: at }));
+        });
+      }
     };
   }
 

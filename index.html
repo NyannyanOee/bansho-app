@@ -292,12 +292,14 @@
         </section>
         <section class="card" aria-labelledby="bk-h">
           <h3 id="bk-h">バックアップ</h3>
-          <div class="kv"><span>最終バックアップ</span><b>まだありません</b></div>
+          <div class="kv"><span>最後に保存操作を確認した日時</span><b id="bk-last">まだありません</b></div>
+          <div class="kv"><span>いまの状態</span><b id="bk-state"></b></div>
+          <p class="hint" id="bk-count"></p>
           <div class="row-btns">
-            <button type="button" class="btn" disabled>書き出す</button>
+            <button type="button" class="btn" data-act="export" id="export-btn" disabled>書き出す</button>
             <button type="button" class="btn" disabled>復元する</button>
           </div>
-          <p class="hint">書き出しと復元は、まだ作っていません（Cの段階で実装予定）。</p>
+          <p class="hint">「書き出す」を押すと、保存の画面が開きます。「ファイルに保存」→「iCloud Drive」を選んでください。アプリからは、iCloud Driveに保存されたかどうかは確認できません。確認できるのは、保存の操作を終えた日時です。復元は次の手順で作ります。</p>
         </section>
         <section class="card" aria-labelledby="pol-h">
           <h3 id="pol-h">バックアップの考え方（現在の方針）</h3>
@@ -316,14 +318,6 @@
           <div id="cat-list"></div>
           <button type="button" class="btn" data-act="merge-open" id="merge-btn">カテゴリーを統合する</button>
           <p class="hint">統合するかどうかは、ここで自分が選んだときだけ決まります。自動では統合されません。</p>
-        </section>
-        <section class="proto" aria-labelledby="pr-h">
-          <h3 id="pr-h">画面の確認用（A段階だけ）</h3>
-          <div class="row-btns">
-            <button type="button" class="btn ghost" data-act="demo-empty">データを空にする</button>
-            <button type="button" class="btn ghost" data-act="demo-reset">架空データに戻す</button>
-          </div>
-          <p class="hint">0件のときの表示などを確認するためのボタンです。保存先が決まったら外します。</p>
         </section>
       </div>
     </section>

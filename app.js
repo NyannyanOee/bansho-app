@@ -322,6 +322,38 @@
   }
 
   /* ---------- 設定・バックアップ ---------- */
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  // 書き出しの操作を確認できたときだけ、日時を記録する（キャンセルでは記録しない）
+  function finishExport() {
+    return store.markExported(new Date().toISOString()).then(renderBackup).then(function () {
+      toast('書き出しの操作を記録しました');
+    }).catch(function () { toast('記録できませんでした。もう一度お試しください。'); });
+  }
+  // ボタンを押した直後に、同じ操作の中で共有画面を開く（iPhoneでは、押した操作の中で開く必要があるため、
+  // データは画面を開いた時点で用意しておく＝state.exp）
+  function doExport() {
+    var exp = state.exp;
+    if (!exp) { toast('準備中です。少し待ってから押してください。'); return; }
+    var file = null;
+    try { file = new File([exp.text], exp.filename, { type: 'application/json' }); } catch (e) { file = null; }
+    if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: exp.filename }).then(finishExport, function (err) {
+        if (err && err.name === 'AbortError') { toast('書き出しをやめました'); }
+        else { toast('書き出せませんでした。もう一度お試しください。'); }
+      });
+      return;
+    }
+    // 共有が使えない環境では、ファイルとして保存（ダウンロード）する
+    var url = URL.createObjectURL(new Blob([exp.text], { type: 'application/json' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = exp.filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+    finishExport();
+  }
   function renderBackup() {
     $('#st-kind').textContent = store.label;
     $('#st-note').textContent = store.persistent
@@ -333,6 +365,21 @@
       }).join('')
       : '<p class="hint">カテゴリーはまだありません。知識の登録画面から追加できます。</p>';
     $('#merge-btn').disabled = state.cats.length < 2;
+    // バックアップ欄：準備ができるまで書き出しボタンは押せないようにする
+    $('#export-btn').disabled = true;
+    Promise.all([store.exportSnapshot(), store.backupStatus()]).then(function (r) {
+      state.exp = r[0];
+      var s = r[1];
+      $('#bk-last').textContent = s.last ? fmtDate(s.last) : 'まだありません';
+      $('#bk-state').textContent = s.unsaved
+        ? '保存していない変更があります'
+        : '書き出しの操作後に変更はありません';
+      $('#bk-count').textContent = r[0].itemCount + '件の知識・' + r[0].catCount + '件のカテゴリー（削除したものを含む）';
+      $('#export-btn').disabled = false;
+    }).catch(function (err) {
+      state.exp = null;
+      $('#bk-state').textContent = msg(err);
+    });
   }
   function openRename(id) {
     var c = state.cats.filter(function (x) { return x.id === id; })[0];
@@ -435,6 +482,7 @@
       case 'rename-do': doRename(false); break;
       case 'rename-force': doRename(true); break;
       case 'merge-open': openMerge(); break;
+      case 'export': doExport(); break;
       case 'merge-do':
         var f = $('#m-from').value, t = $('#m-to').value; if (f === t) break;
         var fn = catName(f), tn = catName(t);
@@ -443,10 +491,6 @@
           closeSheet(); renderBackup(); toast('「' + fn + '」を「' + tn + '」に統合しました');
         }).catch(function (err) { toast(msg(err)); });
         break;
-      case 'demo-empty':
-        store.clearAll().then(refresh).then(function () { state.q = ''; state.fcat = ''; $('#q').value = ''; toast('データを空にしました'); go('list'); }); break;
-      case 'demo-reset':
-        store.resetSample().then(refresh).then(function () { state.q = ''; state.fcat = ''; state.rv = 0; $('#q').value = ''; toast('架空データに戻しました'); renderBackup(); }); break;
     }
   });
   document.addEventListener('change', function (e) {
