@@ -247,3 +247,19 @@ svg.chev{flex:0 0 auto;width:20px;height:20px;color:var(--ink-2);transition:tran
 .sel-opt.on svg.tick{opacity:1}
 .sel-opt.add{color:var(--red-ink);font-weight:700;border-top:1px dashed var(--line);border-radius:0 0 7px 7px;margin-top:4px}
 @media (prefers-reduced-motion:reduce){svg.chev{transition:none}}
+
+/* ---------- ホームのお着替え（背景画像＋ボタン画像） ----------
+ * 変更はホーム画面だけ。画面の名前は背景の看板（ちしきのほうこ）。
+ * 画像を差し替えるときは、同じファイル名で入れ替える（btn-list.jpg など）。
+ * ボタンの文字は画像に含まれるため、画面からは見えなくする。
+ * ただし読み上げ用の名前（.ml）は残してある。 */
+.home{background-image:url(home-bg.jpg);background-size:cover;background-position:center top;background-repeat:no-repeat}
+.home .banner,.home .shelf{display:none}
+.home .menu{padding-block:262px 8px}
+.menu .mcard{background-size:cover;background-position:center}
+.menu .mcard.c-red{background-image:url(btn-regist.jpg)}
+.menu .mcard.c-ecru{background-image:url(btn-list.jpg)}
+.menu .mcard.c-gold{background-image:url(btn-review.jpg)}
+.menu .mcard.c-dark{background-image:url(btn-settings.jpg)}
+.menu .mcard .ic,.menu .mcard .mp{display:none}
+.menu .mcard .ml{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
